@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from app.database import engine
-from routers import events
+from app.routers import events
 
 
 app = FastAPI()
