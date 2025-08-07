@@ -5,8 +5,8 @@ from sqlalchemy import Column, String, DateTime, Enum, JSON
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
+from app.database import Base
 
-Base = declarative_base()
 
 class AuditEvent(Base):
     __tablename__ = "audit_events"

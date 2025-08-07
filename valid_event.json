@@ -1,0 +1,25 @@
+{
+  "time": "2025-08-06T21:32:21.213474+00:00",
+  "logType": "Login",
+  "reportingService": "1b3ea577-2be6-47b2-8930-3a8c2780be56",
+  "logLevel": "informational",
+  "activityType": "UserLogin",
+  "identityType": "User",
+  "user": {
+    "identityUuid": "d1e457a2-8bd4-4268-ae8b-f5ffee26ecc7",
+    "userEmail": "john.doe@example.com",
+    "userFullName": "John Doe"
+  },
+  "action": "Access",
+  "message": "User logged in successfully",
+  "ipAddress": "2001:db8::1",
+  "errorCode": "AUTH_OK",
+  "metadata": {
+    "browser": "Chrome",
+    "os": "Windows"
+  },
+  "account": {
+    "accountId": "acc-123456",
+    "accountName": "Acme Corp"
+  }
+}
