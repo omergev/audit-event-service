@@ -9,3 +9,11 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
 DATABASE_URL = (
     f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 )
+
+# Cache backend: "none" | "memory" | "redis"
+CACHE_BACKEND = os.getenv("CACHE_BACKEND", "memory").lower()
+CACHE_CAPACITY = int(os.getenv("CACHE_CAPACITY", "10000"))
+CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "0"))  # 0 = no TTL
+
+# Redis (for future flip)
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")

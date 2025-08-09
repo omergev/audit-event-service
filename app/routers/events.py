@@ -1,8 +1,10 @@
 # routers/events.py
 
 
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import UUID4
 from sqlalchemy.orm import Session
 from uuid import uuid4
 from datetime import datetime, timezone
@@ -12,20 +14,22 @@ from jsonschema import Draft7Validator, FormatChecker
 from app.models.audit_event import AuditEvent
 from app.schemas.audit_event import AuditEventCreate
 from app.database import get_db 
+from app.services.events_service import cache_put_event, get_event_by_id as svc_get_event_by_id
 
 import os
 
-router = APIRouter()
+# Use a fixed prefix so routes live under /events
+router = APIRouter(prefix="/events", tags=["events"])
 
 # Load and prepare schema once at import time
-schema_path = os.path.join(os.path.dirname(__file__), '../../audit_log_schema.json')
-with open(schema_path, 'r', encoding='utf-8') as f:
+schema_path = Path(__file__).resolve().parents[2] / "audit_log_schema.json"
+with schema_path.open("r", encoding="utf-8") as f:
     audit_event_schema = json.load(f)
 
 # Prepare the JSON schema validator and attach format checker
 json_validator = Draft7Validator(audit_event_schema, format_checker=FormatChecker())
 
-@router.post("/events")
+@router.post("")
 async def create_event(request: Request, db: Session = Depends(get_db)):
     """
     Accepts a new audit event payload,
@@ -80,8 +84,27 @@ async def create_event(request: Request, db: Session = Depends(get_db)):
     db.refresh(event)  # Load auto-generated fields (not neccesary now but good for extanding more fields)
 
     # Step 6: Return enriched payload
-    return {
+    ingested_at_iso = event.ingested_at.isoformat().replace("+00:00", "Z")
+    response = {
         "eventId": str(event.event_id),
-        "ingestedAt": event.ingested_at.isoformat(),
+        "ingestedAt": event.ingested_at.isoformat().replace("+00:00", "Z"),
         **payload
     }
+    cache_put_event(event.event_id, response)
+    return response
+
+
+@router.get("/{event_id}")
+def get_event_by_id(event_id: UUID4, db: Session = Depends(get_db)):
+    """
+    Retrieve a previously stored enriched event by its UUID v4.
+    - 200: return the exact immutable JSON stored by POST /events
+    - 404: if not found
+    - 422: handled automatically if event_id is not a UUID v4
+    """
+    event = svc_get_event_by_id(db, event_id)
+    if event is None:
+        # Not found -> return 404 with a clear message
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    return event

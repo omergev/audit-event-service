@@ -33,22 +33,25 @@ valid_event = {
 }
 
 def test_post_event_success():
+    # Ensure valid payload passes schema and returns enriched fields
     response = client.post("/events", json=valid_event)
     assert response.status_code == 200
     data = response.json()
-    assert "eventId" in data
-    assert "ingestedAt" in data
+    assert "eventId" in data and isinstance(data["eventId"], str)
+    assert "ingestedAt" in data and isinstance(data["ingestedAt"], str)
     assert data["logType"] == valid_event["logType"]
 
 def test_post_event_missing_required_field():
-    broken_event = valid_event.copy()
+    # Remove a required field to trigger schema validation error
+    broken_event = dict(valid_event)
     del broken_event["logType"]
     response = client.post("/events", json=broken_event)
     assert response.status_code == 400
     assert "validationErrors" in response.json()
 
 def test_post_event_invalid_ip():
-    broken_event = valid_event.copy()
+    # Provide an invalid IP to trigger schema validation error
+    broken_event = dict(valid_event)
     broken_event["ipAddress"] = "invalid-ip"
     response = client.post("/events", json=broken_event)
     assert response.status_code == 400
