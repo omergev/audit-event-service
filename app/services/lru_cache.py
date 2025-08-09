@@ -5,8 +5,16 @@ import time
 
 class LRUCacheImpl:
     """
-    Thread-safe LRU cache with optional per-entry TTL.
-    Values are stored as shallow copies (dict) to avoid accidental mutation.
+    Thread-safe LRU cache with optional TTL.
+
+    Why:
+    - Provide O(1) average lookups for hot reads without external dependencies.
+    - Keep the same Cache interface so we can flip to Redis later without touching callers.
+
+    Notes:
+    - Values are shallow-copied on set/get to avoid external mutation side effects.
+    - TTL of 0/None -> no expiration (suitable for immutable audit events).
+    - Single-process only; use Redis for multi-instance deployments.
     """
     def __init__(self, capacity: int = 10_000):
         self.capacity = max(1, capacity)

@@ -4,7 +4,7 @@ from .lru_cache import LRUCacheImpl
 
 class InProcessLRUCache(Cache):
     """In-process LRU cache backend."""
-    def __init__(self, capacity: int = 10_000):
+    def __init__(self, capacity: int):
         self._lru = LRUCacheImpl(capacity=capacity)
 
     def get(self, key: str) -> Optional[Dict[str, Any]]:

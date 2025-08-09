@@ -25,21 +25,41 @@ def cache_delete_event(event_id: UUID) -> None:
     """
     get_cache().delete(_cache_key(event_id))
 
+
 def get_event_by_id(db: Session, event_id: UUID) -> Optional[Dict[str, Any]]:
     """
-    Read-through: try cache, fallback to DB, then populate cache.
-    Returns the exact enriched JSON expected by the API.
+    Read-through: try in-process cache first, fallback to DB by PK,
+    assemble the exact API JSON in the database (jsonb_build_object + strip nulls),
+    then populate the cache.
+
+    Returns:
+      - dict with the exact immutable event JSON, or
+      - None if the event does not exist.
+
+    Why DB-side JSON assembly?
+      - Stable API contract (camelCase keys) decoupled from internal column names.
+      - Less Python marshalling and fewer round-trips.
+      - Easy to enforce consistent 'ingestedAt' formatting with 'Z' and microseconds.
+
+    Complexity:
+      - Cache hit: O(1)
+      - Cache miss: PK lookup (effectively ~O(1) in practice) + JSON build in DB
     """
     cached = get_cache().get(_cache_key(event_id))
     if cached is not None:
         return cached
 
     table_name = getattr(AuditEvent, "__tablename__", "events")
+    
+    # We build the API JSON in the database for:
+    # 1) Stable API contract (camelCase keys) decoupled from internal column names
+    # 2) Less Python-side marshalling and reduced I/O
+    # 3) Consistent 'ingestedAt' format with ISO8601 'Z' and microseconds
     sql = f"""
         SELECT jsonb_strip_nulls(
             jsonb_build_object(
                 'eventId', event_id::text,
-                'ingestedAt', to_char(ingested_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+                'ingestedAt', to_char(ingested_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
                 'time', time,
                 'logType', log_type,
                 'reportingService', reporting_service::text,

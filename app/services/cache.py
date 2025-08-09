@@ -2,7 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Optional, Any, Dict
 
 class Cache(ABC):
-    """Abstract cache interface for simple get/set/delete operations."""
+    """Minimal cache interface to enable swapping backends (memory, Redis, none) without changing callers."""
+    
     @abstractmethod
     def get(self, key: str) -> Optional[Dict[str, Any]]:
         ...

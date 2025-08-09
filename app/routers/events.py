@@ -1,6 +1,5 @@
 # routers/events.py
 
-
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -16,7 +15,6 @@ from app.schemas.audit_event import AuditEventCreate
 from app.database import get_db 
 from app.services.events_service import cache_put_event, get_event_by_id as svc_get_event_by_id
 
-import os
 
 # Use a fixed prefix so routes live under /events
 router = APIRouter(prefix="/events", tags=["events"])
@@ -32,10 +30,20 @@ json_validator = Draft7Validator(audit_event_schema, format_checker=FormatChecke
 @router.post("")
 async def create_event(request: Request, db: Session = Depends(get_db)):
     """
-    Accepts a new audit event payload,
-    validates it using the JSON schema,
-    enriches it with eventId and ingestedAt,
-    and stores it immutably in the database.
+    POST /events
+    Validates the incoming audit event against the JSON schema, enriches it
+    with eventId (UUID v4) and ingestedAt (UTC, ISO8601 'Z'), persists to the DB,
+    and returns the immutable enriched JSON object.
+
+    Status codes:
+      - 200: Valid, persisted, returns the enriched event
+      - 400: JSON schema validation failed (validationErrors list)
+      - 422: Invalid request body (e.g., not JSON) handled by FastAPI
+
+    Design notes:
+      - Validation runs BEFORE DB I/O to avoid unnecessary round-trips.
+      - We return the exact immutable shape used across the API contract.
+      - eventId is always UUID v4; ingestedAt uses ISO8601 with 'Z' for UTC.
     """
 
     # Step 1: Parse raw JSON body
@@ -97,10 +105,20 @@ async def create_event(request: Request, db: Session = Depends(get_db)):
 @router.get("/{event_id}")
 def get_event_by_id(event_id: UUID4, db: Session = Depends(get_db)):
     """
-    Retrieve a previously stored enriched event by its UUID v4.
-    - 200: return the exact immutable JSON stored by POST /events
-    - 404: if not found
-    - 422: handled automatically if event_id is not a UUID v4
+    GET /events/{eventId}
+    Returns the exact immutable event JSON previously stored via POST /events.
+
+    Path params:
+      - eventId: UUID v4 (validated by Pydantic's UUID4)
+
+    Status codes:
+      - 200: Found
+      - 404: Not found
+      - 422: eventId is not a UUID v4
+
+    Design notes:
+      - Read-through cache: O(1) average for repeated reads.
+      - DB assembles the JSON to keep the API contract stable and minimize Python marshalling.
     """
     event = svc_get_event_by_id(db, event_id)
     if event is None:
