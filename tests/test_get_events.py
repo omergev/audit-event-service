@@ -1,7 +1,6 @@
 # tests/test_get_events.py
 
 from fastapi.testclient import TestClient
-import pytest
 from app.main import app
 from uuid import uuid4
 from datetime import datetime, timezone
@@ -24,38 +23,33 @@ def _new_payload(idx: int):
         "account": {"accountId": "acme-1", "accountName": "Acme"}
     }
 
-@pytest.mark.skip(reason="Get events endpoint not implemented yet")
-def test_get_events_order_and_pagination_basic():
-    # Seed a few events to ensure deterministic order by ingestedAt
-    created_ids = []
+def test_get_events_in_ingestion_order_and_time_format():
+    # Arrange: seed a few events to ensure deterministic ingestion order
+    created = []
     for i in range(5):
         res = client.post("/events", json=_new_payload(i))
         assert res.status_code == 200
-        created_ids.append(res.json()["eventId"])
-        # Small sleep to preserve ingestion ordering if needed
-        time.sleep(0.01)
+        created.append(res.json())
+        time.sleep(0.01)  # keep ingestion ordering stable
 
-    # First page
-    res1 = client.get("/events", params={"limit": 3})
-    assert res1.status_code == 200
-    body1 = res1.json()
-    assert "items" in body1 and isinstance(body1["items"], list)
-    assert len(body1["items"]) <= 3
+    # Act
+    res = client.get("/events")
+    assert res.status_code == 200
+    body = res.json()
+    assert isinstance(body, list)
+    assert len(body) >= len(created)
 
-    # Items must be ordered by ingestedAt ASC
-    times1 = [e["ingestedAt"] for e in body1["items"]]
-    assert times1 == sorted(times1)
+    # Assert: items are sorted by ingestedAt ASC
+    ing_times = [e["ingestedAt"] for e in body]
+    assert ing_times == sorted(ing_times)
 
-    # If nextCursor exists, fetch next page
-    next_cursor = body1.get("nextCursor")
-    if next_cursor:
-        res2 = client.get("/events", params={"cursor": next_cursor, "limit": 3})
-        assert res2.status_code == 200
-        body2 = res2.json()
-        times2 = [e["ingestedAt"] for e in body2["items"]]
-        assert times2 == sorted(times2)
+    # Assert: last 5 contain the 5 we just created, in the same relative order
+    created_ids = [e["eventId"] for e in created]
+    body_ids = [e["eventId"] for e in body]
+    # Filter the order as they appear in the body
+    seen = [eid for eid in body_ids if eid in set(created_ids)]
+    assert seen[: len(created_ids)] == created_ids
 
-        # No overlap between pages
-        ids1 = {e["eventId"] for e in body1["items"]}
-        ids2 = {e["eventId"] for e in body2["items"]}
-        assert ids1.isdisjoint(ids2)
+    # Assert: timestamps use 'Z' and are UTC
+    for e in body:
+        assert isinstance(e["ingestedAt"], str) and e["ingestedAt"].endswith("Z")

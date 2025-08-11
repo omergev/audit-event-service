@@ -1,4 +1,4 @@
-# models/audit_event.py
+# app/models/audit_event.py
 
 import uuid
 from sqlalchemy import Column, String, DateTime, Enum, JSON

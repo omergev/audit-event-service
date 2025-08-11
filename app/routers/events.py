@@ -1,6 +1,8 @@
-# routers/events.py
+# app/routers/events.py
 
+import logging
 from pathlib import Path
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import UUID4
@@ -11,9 +13,11 @@ import json
 from jsonschema import Draft7Validator, FormatChecker
 
 from app.models.audit_event import AuditEvent
-from app.schemas.audit_event import AuditEventCreate
+from app.schemas.audit_event import AuditEventCreate, AuditEventRead
+from app.services.events_service import list_events as svc_list_events
 from app.database import get_db 
 from app.services.events_service import cache_put_event, get_event_by_id as svc_get_event_by_id
+from app.services.stream_bus import get_stream_bus
 
 
 # Use a fixed prefix so routes live under /events
@@ -91,14 +95,29 @@ async def create_event(request: Request, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(event)  # Load auto-generated fields (not neccesary now but good for extanding more fields)
 
-    # Step 6: Return enriched payload
-    ingested_at_iso = event.ingested_at.isoformat().replace("+00:00", "Z")
+    # Ensure ingestedAt is emitted in UTC ISO8601 with 'Z'
+    ing = event.ingested_at
+    if ing.tzinfo is None:
+        ing = ing.replace(tzinfo=timezone.utc)
+    else:
+        ing = ing.astimezone(timezone.utc)
+    ingested_at_iso = ing.isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+    # Step 6: Prepare the response
     response = {
         "eventId": str(event.event_id),
-        "ingestedAt": event.ingested_at.isoformat().replace("+00:00", "Z"),
+        "ingestedAt": ingested_at_iso,
         **payload
     }
     cache_put_event(event.event_id, response)
+
+    # Step 7: Publish to stream bus (if configured)
+    try:
+        bus = get_stream_bus()
+        await bus.publish(response)  # publish only after successful commit
+    except Exception as ex:
+        logging.getLogger(__name__).exception("Failed to publish event to stream: %s", ex)
+    
     return response
 
 
@@ -126,3 +145,15 @@ def get_event_by_id(event_id: UUID4, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Event not found")
 
     return event
+
+@router.get("", response_model=List[AuditEventRead])
+def list_all_events(db: Session = Depends(get_db)):
+    """
+    GET /events
+    Returns all stored audit events in the order they were ingested.
+    Notes:
+    - Business-logic free: delegates to service layer.
+    - Events are immutable and returned as stored/enriched.
+    - Timestamps are serialized to UTC with 'Z' by DTO.
+    """
+    return svc_list_events(db)

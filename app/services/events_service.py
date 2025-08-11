@@ -1,6 +1,6 @@
 # app/services/events_service.py
 
-from typing import Optional, Dict, Any
+from typing import List, Optional, Dict, Any
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -49,7 +49,7 @@ def get_event_by_id(db: Session, event_id: UUID) -> Optional[Dict[str, Any]]:
     if cached is not None:
         return cached
 
-    table_name = getattr(AuditEvent, "__tablename__", "events")
+    table_name = getattr(AuditEvent, "__tablename__", "audit_events")
     
     # We build the API JSON in the database for:
     # 1) Stable API contract (camelCase keys) decoupled from internal column names
@@ -86,3 +86,38 @@ def get_event_by_id(db: Session, event_id: UUID) -> Optional[Dict[str, Any]]:
     event_json = dict(row["event_json"])
     cache_put_event(event_id, event_json)
     return event_json
+    
+
+def list_events(db: Session) -> List[Dict[str, Any]]:
+    """
+    Return all events ordered by ingestion time (then by event_id for stable ordering).
+    The JSON is assembled in the database to keep the API contract stable and efficient.
+    Complexity: O(n log n) due to ORDER BY with index on ingested_at (recommended).
+    """
+    table_name = getattr(AuditEvent, "__tablename__", "audit_events")
+    sql = f"""
+        SELECT jsonb_strip_nulls(
+            jsonb_build_object(
+                'eventId', event_id::text,
+                'ingestedAt', to_char(ingested_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+                'time', time,
+                'logType', log_type,
+                'reportingService', reporting_service::text,
+                'logLevel', log_level,
+                'activityType', activity_type,
+                'identityType', identity_type,
+                'user', "user",
+                'action', action,
+                'message', message,
+                'ipAddress', ip_address,
+                'errorCode', error_code,
+                'metadata', metadata_,
+                'account', account
+            )
+        ) AS event_json
+        FROM {table_name}
+        ORDER BY ingested_at ASC, event_id ASC
+    """
+    rows = db.execute(text(sql)).mappings().all()
+    # Build plain Python dicts
+    return [dict(row["event_json"]) for row in rows]

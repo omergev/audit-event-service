@@ -1,3 +1,4 @@
+# app/config.py
 import os
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
@@ -20,3 +21,5 @@ CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "0"))  # 0 = no TTL
 
 # Redis (for future flip)
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+STREAM_CHANNEL = os.getenv("STREAM_CHANNEL", "audit-events")
+HEARTBEAT_INTERVAL_SECONDS = int(os.getenv("HEARTBEAT_INTERVAL_SECONDS", "15"))
