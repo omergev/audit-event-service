@@ -115,6 +115,7 @@ async def create_event(request: Request, db: Session = Depends(get_db)):
     try:
         bus = get_stream_bus()
         await bus.publish(response)  # publish only after successful commit
+        logging.getLogger(__name__).debug("published to stream_bus: %s", response.get("eventId"))
     except Exception as ex:
         logging.getLogger(__name__).exception("Failed to publish event to stream: %s", ex)
     
