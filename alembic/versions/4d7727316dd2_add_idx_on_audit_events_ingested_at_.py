@@ -5,35 +5,36 @@ Revises: 9085549f9274
 Create Date: 2025-08-10 15:42:09.110396
 
 """
-from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '4d7727316dd2'
-down_revision: Union[str, Sequence[str], None] = '9085549f9274'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision = '4d7727316dd2'
+down_revision = '9085549f9274'
+branch_labels = None
+depends_on = None
 
-INDEX_NAME = "idx_audit_events_ingested_at_event_id"
+INDEX_NAME = "idx_audit_events_ingested_at"
 TABLE_NAME = "audit_events"
 
 def upgrade() -> None:
-    # Create a composite index to support ORDER BY ingested_at, event_id efficiently.
-    # Note:
-    # - Using a regular CREATE INDEX here (not CONCURRENTLY) for simplicity in dev.
-    # - For very large tables in production, consider doing it CONCURRENTLY with manual DDL.
-    op.create_index(
-        INDEX_NAME,
-        TABLE_NAME,
-        ["ingested_at", "event_id"],
-        unique=False,
-        postgresql_using="btree",
+    """Create a btree index on ingested_at for efficient retention deletes and ordering."""
+    # Safety: create only if not exists (Alembic lacks a built-in flag, so use raw SQL for Postgres).
+    conn = op.get_bind()
+    conn.execute(
+        sa.text(
+            f"CREATE INDEX IF NOT EXISTS {INDEX_NAME} ON {TABLE_NAME} USING btree (ingested_at)"
+        )
     )
 
 
 def downgrade() -> None:
     # Drop the composite index if exists.
-    op.drop_index(INDEX_NAME, table_name=TABLE_NAME)
+    conn = op.get_bind()
+    conn.execute(
+        sa.text(
+            f"DROP INDEX IF EXISTS {INDEX_NAME}"
+        )
+    )

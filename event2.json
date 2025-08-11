@@ -1,0 +1,12 @@
+{
+  "time": "2025-08-10T12:05:00Z",
+  "logType": "System",
+  "reportingService": "22222222-2222-2222-2222-222222222222",
+  "logLevel": "warning",
+  "activityType": "cache-warmup",
+  "identityType": "Application",
+  "action": "Execute",
+  "message": "Cache warmup completed",
+  "user": { "identityUuid": "svc-1" },
+  "account": { "accountId": "acct-1", "accountName": "Tenant One" }
+}

@@ -1,4 +1,5 @@
 # app/main.py
+
 from contextlib import asynccontextmanager
 import logging
 from fastapi import FastAPI
@@ -12,21 +13,19 @@ from app.config import RETENTION_INTERVAL_SECONDS
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-retention_service = RetentionService(RETENTION_INTERVAL_SECONDS)  # run every hour
+retention_service = RetentionService(RETENTION_INTERVAL_SECONDS)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: start the retention worker
+    # Startup: start retention worker
     await retention_service.start()
     try:
         yield
     finally:
-        # Shutdown: stop the retention worker
+        # Shutdown: stop retention worker
         await retention_service.stop()
 
-
-app = FastAPI()
-# Include the events router
+app = FastAPI(lifespan=lifespan)
 app.include_router(events.router)
 app.include_router(stream.router)
 

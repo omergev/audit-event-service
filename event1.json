@@ -1,0 +1,13 @@
+{
+  "time": "2025-08-10T12:00:00Z",
+  "logType": "Login",
+  "reportingService": "11111111-1111-1111-1111-111111111111",
+  "logLevel": "informational",
+  "activityType": "user-login",
+  "identityType": "User",
+  "action": "Access",
+  "message": "User logged in successfully",
+  "user": { "identityUuid": "user-1", "userEmail": "u1@example.com", "userFullName": "User One" },
+  "account": { "accountId": "acct-1", "accountName": "Tenant One" },
+  "metadata": { "ip": "127.0.0.1" }
+}

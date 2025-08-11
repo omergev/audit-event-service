@@ -1,0 +1,13 @@
+{
+  "time": "2025-08-10T12:10:00Z",
+  "logType": "Management",
+  "reportingService": "33333333-3333-3333-3333-333333333333",
+  "logLevel": "error",
+  "activityType": "record-edit",
+  "identityType": "User",
+  "action": "Update",
+  "message": "Failed to update record",
+  "user": { "identityUuid": "user-2", "userEmail": "u2@example.com" },
+  "account": { "accountId": "acct-2", "accountName": "Tenant Two" },
+  "errorCode": "E42"
+}

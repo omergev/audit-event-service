@@ -19,8 +19,10 @@ CACHE_BACKEND = os.getenv("CACHE_BACKEND", "memory").lower()
 CACHE_CAPACITY = int(os.getenv("CACHE_CAPACITY", "10000"))
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "0"))  # 0 = no TTL
 
-RETENTION_INTERVAL_SECONDS = int(os.getenv("RETENTION_INTERVAL_SECONDS", "5"))  
-RETENTION_YEARS = int(os.getenv("RETENTION_YEARS", "3"))
+# Read once at process start; change via environment variables.
+RETENTION_INTERVAL_SECONDS = int(os.getenv("RETENTION_INTERVAL_SECONDS", "3600")) # default 1 hour
+RETENTION_YEARS = int(os.getenv("RETENTION_YEARS", "3")) 
+RETENTION_DELETE_LIMIT = int(os.getenv("RETENTION_DELETE_LIMIT", "1000"))  # per-cycle batch size
 
 # Redis (for future flip)
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
