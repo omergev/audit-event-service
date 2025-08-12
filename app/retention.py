@@ -54,7 +54,10 @@ class RetentionService:
             while not self._stop.is_set():
                 try:
                     deleted_total = await self._retention_cycle()
-                    logger.info("Retention cycle finished. Deleted rows: %s", deleted_total)
+                    if deleted_total > 0:
+                        logger.info("Retention cycle finished. Deleted rows: %s", deleted_total)
+                    else:
+                        logger.debug("Retention cycle finished. Deleted rows: 0")
                 except Exception:
                     logger.exception("Retention cycle failed with an exception.")
                 try:
@@ -113,5 +116,10 @@ class RetentionService:
             except Exception:
                 logger.exception("Failed to evict event_id %s from cache", eid)
 
-        logger.info("Retention batch deleted rows: %d", len(deleted_ids))
+        # Quieter logs: INFO only when something was actually deleted.
+        if len(deleted_ids) > 0:
+            logger.info("Retention batch deleted rows: %s", len(deleted_ids))
+            logger.debug("Retention batch deleted event_ids: %s", deleted_ids)
+        else:
+            logger.debug("Retention batch deleted rows: 0")
         return len(deleted_ids)
