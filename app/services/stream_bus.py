@@ -20,17 +20,17 @@ class RedisBus:
         payload = json.dumps(event_json, separators=(",", ":"), ensure_ascii=False)
         await self._pub.publish(self._channel, payload)
 
-    # ---- New: raw pubsub helpers (no async generator) ----
+
     async def open_subscriber(self):
-        """Create and subscribe a dedicated PubSub connection."""
-        pubsub = self._pub.pubsub()
+        """Create and subscribe a dedicated PubSub connection (ignoring subscribe messages)."""
+        pubsub = self._pub.pubsub(ignore_subscribe_messages=True)
         await pubsub.subscribe(self._channel)
         return pubsub
 
     async def get_message(self, pubsub, timeout: float) -> Optional[Dict[str, Any]]:
         """
-        Non-blocking-ish poll with timeout.
-        Returns decoded JSON dict if a message arrived, else None.
+        Poll with timeout and return decoded JSON dict if a message arrived.
+        Returns None on timeout or invalid payload.
         """
         try:
             msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=timeout)

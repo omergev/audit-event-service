@@ -6,11 +6,12 @@ from contextlib import suppress
 from sqlalchemy import text
 from app.database import engine
 from app.config import (RETENTION_INTERVAL_SECONDS, RETENTION_YEARS, RETENTION_DELETE_LIMIT)
+from app.services.events_service import cache_delete_event  # evict cache entries for deleted IDs
 
 logger = logging.getLogger(__name__)
 
 class RetentionService:
-    """Periodic background worker that will delete old events based on retention policy."""
+    """Periodic background worker that deletes old events based on the retention policy."""
 
     def __init__(self, interval_seconds: int | None = None) -> None:
         # interval_seconds: how often to run the retention cycle (e.g., every hour)
@@ -22,7 +23,7 @@ class RetentionService:
         """Start the background worker task."""
         if self._task is not None:
             return  # Already started
-        self._stop.clear()  # make sure the loop can run (useful on dev reload)
+        self._stop.clear()
         logger.info(
             "Starting RetentionService worker (interval=%s sec, years=%s)...",
             self.interval_seconds,
@@ -35,7 +36,6 @@ class RetentionService:
         logger.info("Stopping RetentionService worker...")
         self._stop.set()
         if self._task:
-            # Try graceful shutdown first with a short timeout.
             try:
                 await asyncio.wait_for(self._task, timeout=5)
             except asyncio.TimeoutError:
@@ -53,7 +53,6 @@ class RetentionService:
         try:
             while not self._stop.is_set():
                 try:
-                   # Execute one full retention cycle (delete in batches until no rows left).
                     deleted_total = await self._retention_cycle()
                     logger.info("Retention cycle finished. Deleted rows: %s", deleted_total)
                 except Exception:
@@ -61,15 +60,12 @@ class RetentionService:
                 try:
                     await asyncio.wait_for(self._stop.wait(), timeout=self.interval_seconds)
                 except asyncio.TimeoutError:
-                    # Timeout means it's time for the next cycle
                     pass
         finally:
             logger.info("RetentionService loop exiting.")
 
-
     async def _retention_cycle(self) -> int:
         """Delete old events in batches until fewer than limit were deleted."""
-        # Run blocking DB I/O in a thread to avoid blocking the event loop.
         return await asyncio.to_thread(self._delete_until_empty)
 
     def _delete_until_empty(self) -> int:
@@ -79,17 +75,15 @@ class RetentionService:
             rows = self._delete_one_batch(limit=RETENTION_DELETE_LIMIT)
             deleted_total += rows
             if rows < RETENTION_DELETE_LIMIT:
-                # Less than a full batch => nothing more to delete this cycle.
                 break
         return deleted_total
 
     def _delete_one_batch(self, limit: int) -> int:
         """
         Delete up to `limit` old rows and return the number of rows deleted.
-        Idempotent and safe to run concurrently thanks to SKIP LOCKED and batching.
+        Also evict those event IDs from the in-process cache.
+        Safe for concurrent runs thanks to SKIP LOCKED and batching.
         """
-        # Use server-side cutoff to avoid timezone drift and be precise with Postgres intervals.
-        # Note: ORDER BY ingested_at favors predictable batching from oldest to newest.
         sql = text(
             """
             WITH victims AS (
@@ -106,7 +100,18 @@ class RetentionService:
             RETURNING ae.event_id;
             """
         )
+        deleted_ids: list[str] = []
         with engine.begin() as conn:
             result = conn.execute(sql, {"years": str(RETENTION_YEARS), "limit": limit})
-            # rowcount is reliable with DELETE ... RETURNING on Postgres
-            return result.rowcount or 0
+            rows = result.fetchall()  # rows contain (event_id,)
+            deleted_ids = [r[0] for r in rows]
+
+        # Evict deleted IDs from cache so GET /events/{id} will return 404 immediately.
+        for eid in deleted_ids:
+            try:
+                cache_delete_event(eid)
+            except Exception:
+                logger.exception("Failed to evict event_id %s from cache", eid)
+
+        logger.info("Retention batch deleted rows: %d", len(deleted_ids))
+        return len(deleted_ids)
