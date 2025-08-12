@@ -1,15 +1,7 @@
 # app/config.py
 import os
 
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME", "audit_logs")
-DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
-
-DATABASE_URL = (
-    f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-)
+DATABASE_URL = os.getenv("DATABASE_URL") or ("postgresql+psycopg://postgres:postgres@localhost:5432/audit_logs")
 
 # Cache configuration:
 #   CACHE_BACKEND: "none" | "memory" | "redis"
@@ -20,7 +12,7 @@ CACHE_CAPACITY = int(os.getenv("CACHE_CAPACITY", "10000"))
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "0"))  # 0 = no TTL
 
 # Read once at process start; change via environment variables.
-RETENTION_INTERVAL_SECONDS = int(os.getenv("RETENTION_INTERVAL_SECONDS", "3600")) # default 1 hour
+RETENTION_INTERVAL_SECONDS = int(os.getenv("RETENTION_INTERVAL_SECONDS", "86400")) # default 24 hours
 RETENTION_YEARS = int(os.getenv("RETENTION_YEARS", "3")) 
 RETENTION_DELETE_LIMIT = int(os.getenv("RETENTION_DELETE_LIMIT", "1000"))  # per-cycle batch size
 

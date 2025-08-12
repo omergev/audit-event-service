@@ -1,7 +1,6 @@
 services:
   db:
     image: postgres:16
-    container_name: audit-db
     restart: always
     environment:
       POSTGRES_DB: audit_logs
@@ -11,15 +10,30 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      # Check that Redis responds
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   app:
     build: .
+    env_file:
+      - .env
     environment:
-      RETENTION_INTERVAL_SECONDS: "5"
+      RETENTION_INTERVAL_SECONDS: "86400"   # 24 hours
       RETENTION_YEARS: "3"
     ports:
       - "8000:8000"
     depends_on:
       - db
+      - redis
 
 volumes:
   pgdata:
